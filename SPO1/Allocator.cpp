@@ -67,21 +67,8 @@ public:
 				if (((tag*)addr)->free) {
 					int size_block = rand() % ((tag*)addr)->size+1;
 					void *ptr = mem_alloc(size_block);
-					if (ptr != NULL) {
-						p = new Item;
-						p->ptr = ptr;
-						p->checksum = 0;
-						int j = 0;
-						while (j<(size-1)&&ptr >= ptrs[j].ptr) {
-							j++;
-						}
-						if (j == 0) { j++; }
-						if (ptr != ptrs[j-1].ptr) {
-							ptrs.insert(ptrs.begin() + j, *p);
-							size++;
-						}
-					}
 					mem_dump();
+					header_dump(ptrs,size);
 				}
 				else {
 					bool op = (bool)(rand() % 2);
@@ -90,106 +77,13 @@ public:
 						flag = false;
 						size_t preSize = ((tag*)addr)->size;
 						void* new_header = mem_realloc(addr, size_block);
-						if (new_header != NULL) {
-							Item *point = (Item*)malloc(sizeof(Item));
-							point->ptr = new_header;
-							point->checksum = 0;
-							if (flag) {
-								int j = num - 1;
-								while (j >= 0 && ((tag*)(ptrs[j].ptr))->free) {
-									ptrs.erase(ptrs.begin() + j + 1);
-									j--;
-									size--;
-								}
-								j += 2;
-								while (j <= size && ((tag*)(ptrs[j].ptr))->free) {
-									ptrs.erase(ptrs.begin() + j);
-									size--;
-								}
-								void* next_header = (void*)((size_t)new_header + ((tag*)new_header)->size + sizeof(tag));
-								void* prev_header = (void*)((size_t)new_header - ((tag*)new_header)->prevSize - sizeof(tag));
-								bool found = false;
-								j = 0;
-								while (j<size&&ptrs[j].ptr != prev_header) {
-									j++;
-									found = true;
-								}
-								if (!found) {
-									j = 0;
-									while (j < size&&ptrs[j].ptr != new_header) {
-										j++;
-									}
-								}
-								found = false;
-								do {
-									int k = 0;
-									while (k < size) {
-										if (ptrs[k].ptr == next_header) {
-											found = true;
-											break;
-										}
-										k++;
-									}
-									if (!found) {
-										next_header = (void*)((size_t)next_header + ((tag*)next_header)->size + sizeof(tag));
-									}
-								} while (!found);
-								while (ptrs[j + 1].ptr != next_header) {
-									ptrs.erase(ptrs.begin() + j + 1);
-									size--;
-								}
-								prev_header = (void*)((size_t)next_header - ((tag*)next_header)->prevSize - sizeof(tag));
-								while (prev_header != point->ptr) {
-									Item *p1 = (Item*)malloc(sizeof(Item));
-									p1->ptr = prev_header;
-									p1->checksum = 0;
-									ptrs.insert(ptrs.begin() + j + 1, *p1);
-									size++;
-									prev_header = (void*)((size_t)prev_header - ((tag*)prev_header)->prevSize - sizeof(tag));
-								}
-								ptrs.insert(ptrs.begin() + j + 1, *point);
-								size++;
-							}
-							else {
-								int j = num - 1;
-								while (j >= 0 && ((tag*)(ptrs[j].ptr))->free &&((tag*)(ptrs[j+1].ptr))->free) {
-									ptrs.erase(ptrs.begin() + j + 1);
-									if (j != 0) {
-										if (((tag*)(ptrs[j - 1].ptr))->free) {
-											j--;
-										}
-									}
-									size--;
-								}
-								j += 2;
-								while (j < size && ((tag*)(ptrs[j].ptr))->free) {/////////////
-									ptrs.erase(ptrs.begin() + j);
-									size--;
-								}
-								j = 0;
-								while (j<(size - 1) && new_header > ptrs[j].ptr) {
-									j++;
-								}
-								ptrs.insert(ptrs.begin() + j, *point);
-								size++;
-							}
-						}
 						mem_dump();
+						header_dump(ptrs, size);
 					}
 					else {
-						int j = num - 1;
-						while (j >= 0 && ((tag*)(ptrs[j].ptr))->free) {
-							ptrs.erase(ptrs.begin() + j+1);
-							j--;
-							size--;
-						}
-						j += 2;
-						while (j <= size&& ((tag*)(ptrs[j].ptr))->free) {
-							ptrs.erase(ptrs.begin() + j);
-							size--;
-						}
 						mem_free(addr);
 						mem_dump();
+						header_dump(ptrs, size);
 					}
 					//header_dump(ptrs,size);
 				}
@@ -404,28 +298,53 @@ private:
 	void *mem_start;
 	bool flag;
 
-	void header_dump(vector<Item> ptrs_in, int size_in) {
+	void header_dump(vector<Item> &ptrs, int &size) {
 		void* curr_header = (void*)((size_t)mem_start+sizeof(tag));
 		int i = 0;
 		Item *p;
-		vector<Item> ptrs = ptrs_in;
-		int size = size_in;
-		while (!(((tag*)(curr_header))->free&& ((tag*)(curr_header))->size==0)) {
-			if (curr_header!=ptrs[i].ptr) {
+		while (!(((tag*)curr_header)->free == false && ((tag*)curr_header)->size == 0)) {
+			if (i > size - 1) {
+				p = new Item;
+				p->ptr = curr_header;
+				p->checksum = 0;
+				ptrs.insert(ptrs.begin() + i, *p);
+				size++;
+				//curr_header = (void*)((size_t)curr_header + ((tag*)curr_header)->size + sizeof(tag));
+			}
+			else if (curr_header!=ptrs[i].ptr) {
 				if(curr_header<ptrs[i].ptr){
-					while (curr_header != ptrs[i].ptr) {
+					while (curr_header < ptrs[i].ptr) {
 						p = new Item;
 						p->ptr = curr_header;
 						p->checksum = 0;
 						ptrs.insert(ptrs.begin() + i, *p);
 						size++;
+						i++;
 						curr_header = (void*)((size_t)curr_header + ((tag*)curr_header)->size + sizeof(tag));
+					}
+					while (curr_header > ptrs[i].ptr) {
+						ptrs.erase(ptrs.begin() + i);
+						size--;
+					}
+					if (curr_header != ptrs[i].ptr) {
+						p = new Item;
+						p->ptr = curr_header;
+						p->checksum = 0;
+						ptrs.insert(ptrs.begin() + i, *p);
+						size++;
 					}
 				}
 				else {
-					while (curr_header != ptrs[i].ptr) {
+					while (curr_header > ptrs[i].ptr) {
 						ptrs.erase(ptrs.begin() + i);
 						size--;
+					}
+					if (curr_header != ptrs[i].ptr) {
+						p = new Item;
+						p->ptr = curr_header;
+						p->checksum = 0;
+						ptrs.insert(ptrs.begin() + i, *p);
+						size++;
 					}
 				}
 			}
